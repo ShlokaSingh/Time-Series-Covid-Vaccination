@@ -64,7 +64,7 @@ This project explores worldwide COVID-19 vaccination progress and uses **ARIMA-b
 
 **Shloka Singh**  
 Data Scientist | Automation & Analytics Enthusiast  
-🔗 [Connect on LinkedIn](https://www.linkedin.com/in/shlokasingh)
+🔗 [Connect on LinkedIn]([https://www.linkedin.com/in/shloka-singh/])
 
 ---
 
