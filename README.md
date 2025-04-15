@@ -60,21 +60,6 @@ This project explores worldwide COVID-19 vaccination progress and uses **ARIMA-b
 
 ---
 
-## 👩‍💻 Author
-
-**Shloka Singh**  
-Data Scientist | Automation & Analytics Enthusiast  
-🔗 [Connect with me on LinkedIn](https://www.linkedin.com/in/shloka-singh/)
-
----
-
-## 📝 License
-
-This project was created for academic and demonstration purposes during Q1 2021.  
-Data was sourced from the [Our World in Data](https://ourworldindata.org/covid-vaccinations) public dataset.
-
----
-
 ## ⭐ Repo Tags
 
 `#TimeSeries` `#DataScience` `#ARIMA` `#R` `#COVID19`
