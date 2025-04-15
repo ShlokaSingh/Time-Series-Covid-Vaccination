@@ -1,0 +1,601 @@
+---
+title: 'R Mini Project - Covid World Vaccination Progress'
+output:
+  html_document:
+    df_print: paged
+  html_notebook:
+    code_folding: none
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 10
+---
+
+----------
+
+**Importing
+Libraries
+and The
+data set**
+
+We are
+using
+realtime
+Kaggle /
+Github
+which gets
+updated
+daily
+
+Github:
+<https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations>
+
+Kaggle:
+<https://www.kaggle.com/gpreda/covid-world-vaccination-progress?select=country_vaccinations.csv>
+
+```{r message=FALSE, warning=FALSE}
+packages <- c('dplyr','ggplot2','tidyverse','countrycode','IRdisplay','htmlwidgets','plotly','tidyr','choroplethr','choroplethrMaps','lubridate','choroplethr','readr','skimr','naniar','ggmap','RColorBrewer','rworldmap','reshape2')
+
+install_package <- packages %in% row.names(installed.packages())
+if (any (install_package ==  FALSE))
+  install.packages(packages[!install_package])
+library("corrplot")
+library("caret")
+library("caTools")
+sapply(packages, require, character.only = TRUE)
+```
+
+**DATA
+GATHERING**
+
+```{r message=FALSE, warning=FALSE}
+data <- read_csv("./input/vaccinations.csv")
+head(data)
+```
+
+**Inspect
+the
+structure
+of data**
+
+```{r}
+#Inspect the structure of data
+str(data)
+```
+
+**Inspect
+the
+dimensions
+of the
+data**
+
+```{r}
+#Inspect the dimensions of the data
+dim (data)
+```
+
+```{r}
+colnames(data)
+```
+
+**Counting
+Total NA
+in the
+entire
+data set**
+
+```{r}
+# Total NA in the entire data set
+data1 <- data
+data_vaccine <- data
+paste("Total NA count:: ",sum(is.na(data_vaccine)))
+```
+
+**% of
+NA's in
+entire
+dataset**
+
+```{r}
+# % of NA's in entire dataset
+((sum(is.na(data_vaccine)) / prod(dim(data_vaccine))) * 100) %>%
+round (2)
+```
+
+**NA's per
+feature
+can also
+be
+visualised
+as below**
+
+```{r}
+vis_miss(data_vaccine)
+```
+
+**Total
+Number of
+NAs per
+Feature**
+
+```{r}
+  data.frame("Total_NA" = colSums(is.na(data_vaccine))) %>%
+    mutate ("Percentage_of_NA" = (colSums(is.na(data_vaccine))/dim(data_vaccine)[1]) %>% 
+            round (3) * 100)
+```
+
+**Countries
+for which
+the data
+is
+collected**
+
+```{r}
+# Countries for which the data is collected
+
+location <- unique(data_vaccine$location)
+location
+```
+
+**Analysing
+UK and its
+Sovient
+Countries**
+
+As we
+analysed
+our
+dataset we
+got to
+know that
+there is
+UK and
+their
+sovient
+countries
+
+```{r}
+# There is United kingdom and also its sovient countries included in the data, 
+# let us verify if they have same number of records included
+
+ # There is United kingdom and also its sovient countries included in the data, 
+# let us verify if they have same number of records included
+data_vaccine %>%
+filter (location %in% c('United Kingdom','Northern Ireland','Wales','Scotland'))%>%
+group_by(location)%>%
+count()
+
+
+```
+
+**Data
+Cleaning**
+
+```{r}
+#Data Cleaning
+#There are few steps in this section:
+
+#As shown by .head() method, our data obviously contains missing values, so we'll need to deal with it somehow
+#Some of the country names appeared in the dataset, does not represent a single country (constituent countries) and also the union territories
+#Multiple vaccines are updated in a single row and needs to be separated
+
+# Handling the missing values
+
+data_vaccine[is.na(data_vaccine)] = 0
+
+vis_miss(data_vaccine)
+
+# there are no more NA in the data set
+```
+
+**Removing
+10
+countries
+( UK
+soviet +
+UK
+pertinence
++ Denmark
+pertinence)**
+
+```{r}
+# Removing the UK soviet countries
+# I also consider to eliminate Gibraltar, Isle of Man, Cayman Islands, Falkland Islands, Guernsey, 
+# Saint Helena, Turks and Caicos Islands (UK pertinence), Faeroe Islands (Denmark pertinence).
+remove_countries = c('England','Northern Ireland','Scotland','Wales','Falkland Islands','Faeroe Islands','Isle of Man','Cayman Islands','Saint Helena','Saint Lucia','Saint Vincent and the Grenadines','Saint Kitts and Nevis')
+
+data_vaccine <-data_vaccine %>%
+  filter (!location %in% remove_countries) 
+
+unique(data_vaccine$location)
+```
+
+**Vaccines
+Used
+Worldwide**
+
+```{r}
+# Below the Vaccines use world wide
+    data_vaccine$vaccines <- str_replace_all(data_vaccine$vaccines, " ","")
+    # remove all spaces in between
+    vaccine_val<- unique(data_vaccine$vaccines)
+    vaccine<- vector()
+
+    for (i in vaccine_val){
+        for (j in strsplit(i, ",")){
+            vaccine<- c(vaccine, j)
+        }
+    }
+    vaccine_used<- unique(vaccine)
+    vaccine_used
+```
+
+```{r}
+# Inspect the usage of vaccine used wordwide
+
+vaccine_data_val <- data.frame(matrix(ncol = length(vaccine_used), nrow = 0))
+for (i in data_vaccine$vaccines){
+  vaccine_data_val<- rbind(vaccine_data_val, Vectorize(grepl, USE.NAMES = TRUE)(vaccine_used, str_replace_all(i," ","")))
+}
+vaccine_data_val[vaccine_data_val == TRUE] = 1
+vaccine_data_val[vaccine_data_val == FALSE] =0
+colnames(vaccine_data_val) <- paste0(unique(vaccine))
+```
+
+**Percentage
+of
+Vaccines
+used
+Worldwide**
+
+```{r}
+vaccine_data_val %>%
+summarise_all(sum)%>%
+gather(key="Vaccine_name", value = "Vaccine_count")%>%
+mutate (Vaccine_count1 = round(Vaccine_count/sum(Vaccine_count),3))%>%
+ggplot(mapping=aes(x=reorder(Vaccine_name,-Vaccine_count1), y=Vaccine_count1, fill =Vaccine_count1, alpha=0.7))+
+geom_col()+
+labs(x = "Vaccines", y = "Proportions", title  = "Percentage of vaccines used worldwide")+
+geom_text(aes(label = paste(Vaccine_count1*100,"%")), vjust=-0.5)+
+scale_y_continuous(labels = scales::percent) + 
+theme_bw()+
+theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "None")
+```
+
+**Number
+of
+Countries
+Using
+these
+Vaccines**
+
+```{r}
+# No of countries using these vaccines
+
+
+
+vaccine_in_countries<- vaccine_data_val %>%
+mutate(country = data_vaccine$location)%>%
+group_by(country)%>%
+summarise_all(sum)
+
+data <- data.frame("No_of_countries"= apply(vaccine_in_countries[-1],2, function(c)sum(c!=0)))
+cbind("Vaccine"=row.names(data),data) %>%
+ggplot(mapping=aes(x=reorder(Vaccine, -No_of_countries), y=No_of_countries, fill = Vaccine, alpha=0.5))+
+geom_col() +
+labs(x = "Vaccines", y = "No. of Countries", title  = "Number of Countries using vaccine")+
+geom_text(aes(label = No_of_countries), vjust=-0.5)+
+theme_bw()+
+theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "None")
+```
+
+**Spread
+of Vaccine
+across the
+world**
+
+```{r}
+#Spread of Vaccine accrosss the world
+
+
+#Spread of Vaccine accrosss the world
+
+head(data_vaccine)
+
+
+```
+
+```{r}
+
+world_data<- data_vaccine[,c(1,2,length(data_vaccine))] %>%
+distinct()%>%
+separate_rows(vaccines, sep=",")
+world_data
+```
+
+**Plotting
+Countries
+using a
+particular
+vaccine**
+
+```{r}
+options(repr.plot.width=20, repr.plot.height=8)
+
+plot_world_map <- function(iso,vacc) {
+  d <- joinCountryData2Map(iso, joinCode = "ISO3",
+      nameJoinColumn = "iso_code", verbose= FALSE)
+  mapCountryData(d, nameColumnToPlot="vaccines", catMethod = "categorical",
+    missingCountryCol = "white", addLegend = FALSE, mapTitle = paste("Countries using", vacc), oceanCol="lightblue")
+    identifyCountries(d, nameCountryColumn = "iso_code",plotSelected = TRUE)
+}
+
+for (vac in vaccine_used){
+    plot_world_map(world_data[world_data$vaccines == vac,],vac)
+}
+```
+
+**Total
+vaccination
+in the
+countries**
+
+```{r}
+
+data_vaccine <- data_vaccine %>%
+  select(location, iso_code, date, total_vaccinations,people_vaccinated_per_hundred, daily_vaccinations) %>%
+  group_by(location) %>%
+  filter(!is.na(total_vaccinations)) %>%
+  filter(total_vaccinations == max(total_vaccinations))
+
+
+```
+
+**Recent
+Update
+made in
+the
+Dataset**
+
+```{r}
+d <-as.Date(data_vaccine$date)
+recent.date <- max(d)
+recent.date
+```
+
+# **Top 20 Most Vaccinated Countries**
+
+Plot of
+total
+vaccinations
+for the
+top 20
+most
+vaccinated
+countries
+as of the
+most
+recent
+update.
+
+```{r}
+df_total_vaccinations <-data_vaccine[!(data_vaccine$location=="World"),]
+df_total_vaccinations 
+```
+
+**Total
+Vaccinations
+per
+Country**
+
+```{r}
+
+df_total_vaccinations %>%
+  arrange(desc(total_vaccinations)) %>%
+head(20)%>%
+  ggplot(aes(total_vaccinations, reorder(location, total_vaccinations))) + theme_minimal() + 
+  geom_bar(stat = 'identity', aes(fill=total_vaccinations)) + scale_x_continuous(labels = scales::comma) + 
+  labs(title = paste('Total Vaccinations per Country as of', recent.date, sep = " "), y = '', x = 'Total Vaccinations') +
+  theme(legend.position = 'none')
+```
+
+**Let's
+take a
+look at
+vaccinations
+per
+hundred
+people to
+see how
+the
+percentages
+look.**
+
+```{r}
+data_vaccine$people_vaccinated_per_hundred
+```
+
+**Total
+Vaccination
+Percentage
+Per
+Country**
+
+```{r}
+
+
+df_vacc_perc <- data_vaccine %>%
+  select(location, iso_code, date, people_vaccinated_per_hundred) %>%
+  group_by(location) %>%
+  filter(!is.na(people_vaccinated_per_hundred)) %>%
+  filter(people_vaccinated_per_hundred == max(people_vaccinated_per_hundred)) %>%
+  distinct(location, .keep_all = TRUE)
+
+#Plot of total vaccinations per hundred people for top 20 most vaccinated countries as of most recent update.
+df_vacc_perc %>%
+  arrange(desc(people_vaccinated_per_hundred)) %>%
+  head(20) %>%
+  ggplot(aes(people_vaccinated_per_hundred, reorder(location, people_vaccinated_per_hundred))) + theme_minimal() + 
+  geom_col(aes(fill=people_vaccinated_per_hundred)) + geom_label(aes(label = people_vaccinated_per_hundred)) +
+  labs(title = paste('Total Vaccination Percentage per Country as of', recent.date, sep = " "), y = '', x = 'Percentage of Population') +
+  theme(legend.position = 'none')
+```
+
+# **Average Daily Vaccinations**
+
+Let's see
+how the
+top
+countries
+are doing
+as far as
+daily
+vaccinations.
+
+```{r}
+#Daily Vaccinations
+df_vacc_daily <- data_vaccine %>%
+  select(location, daily_vaccinations) %>%
+  group_by(location) %>%
+  filter(!is.na(daily_vaccinations))
+
+#Aggregate data by country name and average them.
+df_vacc_daily <- aggregate(list(daily_vaccinations = df_vacc_daily$daily_vaccinations), list(location = df_vacc_daily$location), mean)
+
+#Plot of average daily vaccinations for each country.
+df_vacc_daily %>%
+  arrange(desc(daily_vaccinations)) %>%
+  head(10) %>%
+  ggplot(aes(daily_vaccinations, reorder(location, daily_vaccinations))) + theme_minimal() + 
+  geom_col(aes(fill=daily_vaccinations)) + geom_label(aes(label = round(daily_vaccinations))) +
+  labs(title = paste('Average Daily Vaccinations per Country as of', recent.date, sep = " "), y = '', x = 'Daily Vaccinations') +
+  theme(legend.position = 'none')
+
+```
+
+**Feature
+Scaling
+for
+India**
+
+```{r}
+
+data_India <- data1%>% filter(data1$location  == "India")
+data_India
+
+```
+
+```{r}
+data_India[is.na(data_India)] = 0
+data_India
+```
+
+**Summary**
+
+```{r}
+summary(data_India)
+```
+
+```{r}
+normalize <- function(x) {
+  return((x-min(x))/ (max(x)-min(x)))
+}
+```
+
+```{r}
+normalize(data_India$people_vaccinated  )
+```
+
+```{r}
+normalize(data_India$people_fully_vaccinated )
+```
+
+```{r}
+normalize(data_India$daily_vaccinations_raw )
+```
+
+```{r}
+normalize(data_India$ daily_vaccinations )
+```
+
+```{r}
+data_India$total_vaccinations<-normalize(data_India$ total_vaccinations )
+data_India$total_vaccinations
+```
+
+```{r}
+cor_vaccine <- cor(data_India[, 4:11])
+cor_vaccine
+
+corrplot(cor_vaccine, method ='square', type='upper',number.cex=10)
+```
+
+**Linear
+Regression**
+
+```{r}
+
+set.seed(123)
+split<- sample.split(data_India$total_vaccinations, SplitRatio = 0.7)
+train.data<- subset(data_India, split == T)
+test.data <- subset(data_India, split == F)
+```
+
+```{r}
+ggplot(train.data, aes(date, total_vaccinations) ) +
+  geom_point() +
+  stat_smooth()
+```
+
+```{r}
+# Build the model
+model <- lm(total_vaccinations ~ date, data = train.data)
+# Make predictions
+predictions <- model %>% predict(test.data)
+# Model performance
+data.frame(
+  RMSE = RMSE(predictions, test.data$total_vaccinations),
+  R2 = R2(predictions, test.data$total_vaccinations)
+)
+summary(model)
+```
+
+**Plotting
+Linear
+Regression**
+
+```{r}
+ggplot(train.data, aes(date, total_vaccinations) ) +
+  geom_point() +
+  stat_smooth(method = lm, formula = y ~ x)
+```
+
+**Polynomial
+Regression**
+
+```{r}
+ #Build the model
+class(data_India$date)
+train.data$date<-as.numeric(as.Date(train.data$date, origin = "1900-01-01"))
+test.data$date<-as.numeric(as.Date(test.data$date, origin = "1900-01-01"))
+model2 <- lm(total_vaccinations ~ poly(date, 5, raw = TRUE), data = train.data)
+# Make predictions
+predictions <- model2 %>% predict(test.data)
+# Model performance
+data.frame(
+  RMSE = RMSE(predictions, test.data$total_vaccinations),
+  R2 = R2(predictions, test.data$total_vaccinations)
+)
+summary(model2)
+```
+
+**Plotting
+Polynomial
+Regression**
+
+```{r}
+ggplot(train.data, aes(date, total_vaccinations) ) +
+  geom_point() +
+  stat_smooth(method = lm, formula = y ~ poly(x, 5, raw = TRUE))
+
+```
